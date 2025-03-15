@@ -1,5 +1,8 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
+import html2canvas from "html2canvas";
+import { oklch, formatHex } from "culori";
+
 // import { useNavigate } from "react-router-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -52,9 +55,9 @@ const DraggablePhoto = ({
   const style = {
     transform: CSS.Translate.toString(transform),
     zIndex: isSelected ? 10 : 1,
-    height: "150px",
+    height: "300px",
     width: "auto",
-    maxWidth: "200px",
+    maxWidth: "300px",
     position: "absolute",
   } as React.CSSProperties;
 
@@ -200,48 +203,6 @@ const Create = () => {
     setPhotos(newPhotos);
   };
 
-  // Extract quotes from conversation
-  // const extractQuotes = () => {
-  //   if (!conversation.trim()) {
-  //     toast.error("Please enter a conversation transcript first.");
-  //     return;
-  //   }
-
-  //   // Simple quote extraction - get sentences with quotes or that end with exclamation/question marks
-  //   const sentences = conversation.match(/[^.!?]+[.!?]+/g) || [];
-
-  //   const quotes = sentences
-  //     .filter((sentence) => {
-  //       const trimmed = sentence.trim();
-  //       return (
-  //         trimmed.includes('"') ||
-  //         trimmed.includes('"') ||
-  //         trimmed.includes("'") ||
-  //         trimmed.endsWith("!") ||
-  //         trimmed.endsWith("?")
-  //       );
-  //     })
-  //     .map((sentence) => sentence.trim().replace(/["""]/g, ""));
-
-  //   // Take up to 5 quotes
-  //   const limitedQuotes = quotes.slice(0, 5);
-
-  //   if (limitedQuotes.length === 0) {
-  //     // If no quotes detected, just take the first few sentences
-  //     setExtractedQuotes(sentences.slice(0, 3));
-  //   } else {
-  //     setExtractedQuotes(limitedQuotes);
-  //   }
-
-  //   toast.success(
-  //     `${
-  //       limitedQuotes.length > 0
-  //         ? limitedQuotes.length
-  //         : sentences.slice(0, 3).length
-  //     } quotes extracted!`
-  //   );
-  // };
-
   const getRandomPosition = (
     canvasWidth: number,
     canvasHeight: number,
@@ -278,23 +239,64 @@ const Create = () => {
   };
   // Add item to canvas
   const addItemToCanvas = (type, content) => {
-    const randomPosition = getRandomPosition(300, 200, 200, 150, memoryItems);
+    const canvasWidth = 1000;
+    const canvasHeight = 1000;
+    const randomPosition = getRandomPosition(
+      canvasWidth,
+      canvasHeight,
+      300,
+      300,
+      memoryItems
+    );
     const newItem = {
       id: `${type}-${Date.now()}`,
-      type,
-      content,
+      type: type,
+      content: content,
       position: {
         x: randomPosition.x,
         y: randomPosition.y,
-      },
-      size: {
-        width: 200,
-        height: 150,
       },
     };
 
     setMemoryItems([...memoryItems, newItem]);
     setSelectedItemId(newItem.id);
+  };
+  const addAllToCanvas = (quote: string) => {
+    const canvasWidth = 800;
+    const canvasHeight = 800;
+    const newItems = [];
+    for (let i = 0; i < photos.length; i++) {
+      const itemWidth = 150; // Fixed width
+      const randomPosition = getRandomPosition(
+        canvasWidth,
+        canvasHeight,
+        100,
+        100,
+        newItems
+      );
+      const newItem = {
+        id: `photo-${Date.now()}-${i}`,
+        type: "photo",
+        content: photoPreview[i],
+        position: {
+          x: randomPosition.x,
+          y: randomPosition.y,
+        },
+      };
+      newItems.push(newItem);
+    }
+    const quotePosition = getRandomPosition(300, 200, 200, 150, newItems);
+    newItems.push({
+      id: `quote-${Date.now()}`,
+      type: "quote",
+      content: quote,
+      position: {
+        x: quotePosition.x,
+        y: quotePosition.y,
+      },
+    });
+    console.log(newItems);
+    setMemoryItems(newItems);
   };
 
   // Handle drag end
@@ -331,9 +333,46 @@ const Create = () => {
       toast.error("Add some items to your canvas first!");
       return;
     }
+    const elements = document.querySelectorAll('[style*="oklch"]');
+    elements.forEach((element) => {
+      const style = element.getAttribute("style");
+      const updatedStyle = style.replace(/oklch\([^)]+\)/g, (match) => {
+        const hexColor = formatHex(oklch(match));
+        return hexColor;
+      });
+      element.setAttribute("style", updatedStyle);
+    });
+    html2canvas(canvasRef.current, {
+      useCORS: true, // Enable cross-origin images (if needed)
+      allowTaint: true, // Allow tainted images (if needed)
+      scale: 2, // Increase scale for higher resolution
+    })
+      .then((canvas) => {
+        // Convert the canvas to a data URL
+        const image = canvas.toDataURL("image/png");
+
+        // Create a temporary link element
+        const link = document.createElement("a");
+        link.href = image;
+        link.download = "memory.png"; // Set the filename
+        document.body.appendChild(link);
+
+        // Trigger the download
+        link.click();
+
+        // Clean up
+        document.body.removeChild(link);
+
+        // Show success message
+        toast.success("Your memory has been downloaded!");
+      })
+      .catch((error) => {
+        console.error("Error capturing canvas:", error);
+        toast.error("Failed to download the memory. Please try again.");
+      });
 
     // Use html2canvas for actual implementation
-    toast.success("Your memory has been downloaded!");
+    // toast.success("Your memory has been downloaded!");
   };
 
   // When upload is complete, move to design tab
@@ -376,13 +415,17 @@ const Create = () => {
     // console.log(backgroundImage);
     // Extract quotes and then proceed to design tab
     // extractQuotes();
-    setPhotoPreview([]);
-    setPhotos([]);
-    setMemoryItems([]);
-    for (let i = 0; i < photos.length; i++) {
-      addItemToCanvas("photo", photoPreview[i]);
-    }
-    addItemToCanvas("quote", quoteData.quote);
+
+    // setMemoryItems([]);
+    console.log(photos.length);
+    // addItemToCanvas("quote", quoteData.quote);
+    // for (let i = 0; i < photos.length; i++) {
+    //   addItemToCanvas("photo", photoPreview[i]);
+    // }
+    // addItemToCanvas("photo", photoPreview[0]);
+    addAllToCanvas(quoteData.quote);
+    console.log(memoryItems);
+    //
     setActiveTab("design");
   };
 
@@ -622,7 +665,11 @@ const Create = () => {
                     ref={canvasRef}
                     className="relative w-full aspect-video bg-gray-50 rounded-lg overflow-hidden"
                     onClick={() => setSelectedItemId(null)}
-                    style={{ backgroundImage: `url(${backgroundImage})` }}
+                    style={{
+                      backgroundImage: `url(${backgroundImage})`,
+                      backgroundSize: "stretch",
+                      // backgroundSize: "cover",
+                    }}
                   >
                     <DndContext
                       sensors={sensors}
@@ -654,7 +701,7 @@ const Create = () => {
                             <DraggableQuote
                               key={item.id}
                               id={item.id}
-                              text={item.content}
+                              text={item.content ? item.content : ""}
                               transform={{
                                 x: item.position.x,
                                 y: item.position.y,

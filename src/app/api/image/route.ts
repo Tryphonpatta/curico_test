@@ -6,7 +6,7 @@ export async function POST(req: Request) {
     model: "dall-e-3",
     prompt: `background image for this passage : ${quote}`,
     n: 1,
-    size: "512x512",
+    size: "1024x1024",
   });
   console.log(response);
   return Response.json(response.data);
